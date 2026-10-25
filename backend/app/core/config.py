@@ -57,6 +57,14 @@ ADMIN_RATE_LIMIT = os.getenv("ADMIN_RATE_LIMIT", "10/minute")
 
 # Runtime and admin security
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin.strip()
+]
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
 REQUIRE_ADMIN_AUTH = os.getenv("REQUIRE_ADMIN_AUTH", "true").lower() in ("true", "1", "yes")
 
@@ -70,6 +78,21 @@ def validate_production_security(app_env: str = APP_ENV, admin_api_key: str = AD
 
 
 validate_production_security()
+
+
+def validate_cors_origins(
+    app_env: str = APP_ENV,
+    origins: list[str] = CORS_ORIGINS,
+) -> None:
+    """Require explicit, non-wildcard browser origins in production."""
+    normalized = {origin.strip() for origin in origins if origin.strip()}
+    if app_env in {"production", "prod"} and (not normalized or "*" in normalized):
+        raise RuntimeError(
+            "Production startup refused: CORS_ORIGINS must contain explicit origins."
+        )
+
+
+validate_cors_origins()
 
 # Database (PostgreSQL / Neon)
 DATABASE_URL = os.getenv("DATABASE_URL", "")

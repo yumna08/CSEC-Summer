@@ -25,6 +25,28 @@ def test_health_endpoint(client):
     assert response.json() == {"status": "healthy", "service": "campusguide-api"}
 
 
+def test_cors_allows_configured_frontend_origin_and_rejects_unknown_origin(client):
+    allowed = client.options(
+        "/api/health",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert allowed.status_code == 200
+    assert allowed.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+    rejected = client.options(
+        "/api/health",
+        headers={
+            "Origin": "https://untrusted.example",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert rejected.status_code == 400
+    assert "access-control-allow-origin" not in rejected.headers
+
+
 def test_ai_test_missing_key(client):
     with patch("app.main.GEMINI_API_KEY", ""):
         response = client.post("/api/ai/test")

@@ -87,6 +87,9 @@ class LocalTestClient:
     def patch(self, url: str, **kwargs: Any) -> httpx.Response:
         return self.request("PATCH", url, **kwargs)
 
+    def options(self, url: str, **kwargs: Any) -> httpx.Response:
+        return self.request("OPTIONS", url, **kwargs)
+
     def delete(self, url: str, **kwargs: Any) -> httpx.Response:
         return self.request("DELETE", url, **kwargs)
 

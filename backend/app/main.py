@@ -6,7 +6,13 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api.knowledge import router as knowledge_router
-from app.core.config import CHAT_RATE_LIMIT, DATABASE_URL, GEMINI_API_KEY, GEMINI_MODEL
+from app.core.config import (
+    CHAT_RATE_LIMIT,
+    CORS_ORIGINS,
+    DATABASE_URL,
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+)
 from app.core.rate_limit import limiter
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.rag import rag_service
@@ -25,10 +31,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-Admin-Key"],
