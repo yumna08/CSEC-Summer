@@ -1,15 +1,20 @@
+import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
-from pydantic import BaseModel
 
-from app.core.config import GEMINI_API_KEY, GEMINI_MODEL
+from app.api.knowledge import router as knowledge_router
+from app.core.config import DATABASE_URL, GEMINI_API_KEY, GEMINI_MODEL
+from app.schemas.chat import ChatRequest, ChatResponse
+from app.services.rag import rag_service
+from app.services.vector_store import vector_store
 
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="ASTU CampusGuide AI API",
-    description="Backend API for the ASTU CampusGuide AI project.",
-    version="0.1.0",
+    description="Backend API for the ASTU CampusGuide AI project with document ingestion and RAG.",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -19,15 +24,12 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Admin-Key"],
 )
 
-
-class GeminiTestResponse(BaseModel):
-    message: str
-    model: str
-    reply: str
+# Mount document management & ingestion endpoints
+app.include_router(knowledge_router)
 
 
 @app.get("/")
@@ -35,19 +37,75 @@ def root():
     return {
         "name": "ASTU CampusGuide AI",
         "status": "running",
-        "version": "0.1.0",
+        "version": "0.3.0",
     }
 
 
 @app.get("/api/health")
-def health():
-    return {
+def health(detailed: bool = False):
+    """
+    Health and readiness check.
+    By default returns simple status. When detailed=True, reports component statuses
+    for database, vector store, and AI provider configuration safely without leaking credentials.
+    """
+    if not detailed:
+        return {"status": "healthy", "service": "campusguide-api"}
+
+    details = {
         "status": "healthy",
         "service": "campusguide-api",
+        "version": "0.3.0",
+        "components": {},
     }
 
+    # Vector store check
+    try:
+        count = vector_store.collection.count()
+        details["components"]["vector_store"] = {
+            "status": "ready",
+            "indexed_chunks": count,
+        }
+    except Exception as e:
+        logger.warning("Vector store health check failed: %s", str(e))
+        details["components"]["vector_store"] = {
+            "status": "unavailable",
+            "error": "Vector store connection error",
+        }
+        details["status"] = "degraded"
 
-@app.post("/api/ai/test", response_model=GeminiTestResponse)
+    # Database check
+    if not DATABASE_URL:
+        details["components"]["database"] = {
+            "status": "not_configured",
+        }
+    else:
+        try:
+            from sqlalchemy import text
+            from app.db.database import get_engine
+            engine = get_engine()
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            details["components"]["database"] = {
+                "status": "connected",
+            }
+        except Exception as e:
+            logger.warning("Database health check failed: %s", str(e))
+            details["components"]["database"] = {
+                "status": "disconnected",
+                "error": "Connection failed",
+            }
+            details["status"] = "degraded"
+
+    # AI configuration check
+    details["components"]["ai_service"] = {
+        "status": "configured" if bool(GEMINI_API_KEY) else "unconfigured",
+        "model": GEMINI_MODEL,
+    }
+
+    return details
+
+
+@app.post("/api/ai/test")
 def test_gemini():
     if not GEMINI_API_KEY:
         raise HTTPException(
@@ -57,7 +115,6 @@ def test_gemini():
 
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
-
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=(
@@ -72,19 +129,50 @@ def test_gemini():
                 detail="Gemini returned an empty response.",
             )
 
-        return GeminiTestResponse(
-            message="Gemini connection successful.",
-            model=GEMINI_MODEL,
-            reply=response.text,
-        )
-
+        return {
+            "message": "Gemini connection successful.",
+            "model": GEMINI_MODEL,
+            "reply": response.text,
+        }
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Gemini request failed. Check the API key, "
-                "model availability, quota, and network connection."
-            ),
+            detail="Gemini request failed. Check the backend terminal.",
+        ) from None
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+def chat(request: ChatRequest):
+    """
+    RAG-grounded chat endpoint:
+    1. Embeds query
+    2. Retrieves top relevant ASTU document chunks
+    3. Prompts Gemini with evidence and strict grounding rules
+    4. Returns grounded answer and contributing source citations
+    """
+    if not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API key is not configured.",
+        )
+
+    message = request.message.strip()
+    if not message:
+        raise HTTPException(
+            status_code=422,
+            detail="Please enter a question.",
+        )
+
+    try:
+        reply, sources = rag_service.answer_question(message)
+        return ChatResponse(reply=reply, sources=sources)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Unexpected error in /api/chat: %s", str(e))
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred while processing your request.",
         ) from None
