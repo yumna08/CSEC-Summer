@@ -1,0 +1,16 @@
+{
+  "dataset": "/home/siham-yimam/CSEC summer/backend/data/evaluation_dataset.json",
+  "pipeline": "graph",
+  "model": "deterministic mock Gemini; no external API calls",
+  "retrieval": "lexical mock over persisted Chroma chunks",
+  "cases": 16,
+  "behavior_accuracy": 0.4375,
+  "citation_correctness": 0.5625,
+  "abstention_rate": 0.0625,
+  "mean_latency_ms": 5.196,
+  "comparison_to_baseline": {
+    "behavior_accuracy": "equal",
+    "citation_correctness": "equal",
+    "abstention_rate": "equal"
+  }
+}

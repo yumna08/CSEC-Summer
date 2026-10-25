@@ -42,6 +42,7 @@ RAG_SCORE_MARGIN = float(os.getenv("RAG_SCORE_MARGIN", "0.10"))
 # Conversation memory
 CHAT_HISTORY_TURNS = max(0, int(os.getenv("CHAT_HISTORY_TURNS", "6")))
 CHAT_RETENTION_DAYS = max(0, int(os.getenv("CHAT_RETENTION_DAYS", "30")))
+USE_GRAPH_PIPELINE = os.getenv("USE_GRAPH_PIPELINE", "false").lower() in ("true", "1", "yes")
 
 # Crawler & Security Settings
 APPROVED_DOMAINS = [

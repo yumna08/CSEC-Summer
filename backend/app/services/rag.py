@@ -543,6 +543,7 @@ class RAGService:
         relevance_threshold: Optional[float] = None,
         retrieval_question: Optional[str] = None,
         history: Optional[List[Dict[str, Any]]] = None,
+        retrieved_chunks: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[str, List[SourceCitation], Dict[str, Any]]:
         """
         Execute full RAG pipeline and return answer, validated citations,
@@ -567,23 +568,16 @@ class RAGService:
             )
 
         # Step 1 & 2: Embedding, Query Analysis, and Vector/Hybrid Retrieval
-        query_tokens = extract_substantive_tokens(clean_retrieval_question)
-        is_nav = is_source_location_query(clean_retrieval_question)
-
-        relevant_chunks: List[Dict[str, Any]] = []
-        try:
-            query_embedding = embedding_service.embed_query(clean_retrieval_question)
-            relevant_chunks = vector_store.similarity_search(
-                query_embedding=query_embedding,
+        if retrieved_chunks is None:
+            relevant_chunks, is_nav = self.retrieve_chunks(
+                clean_retrieval_question,
                 top_k=top_k,
                 max_distance=effective_max_dist,
                 score_margin=score_margin,
-                query_tokens=query_tokens,
-                is_navigational=is_nav,
             )
-        except Exception as e:
-            logger.warning("Knowledge retrieval unavailable or failed: %s", str(e))
-            # Continue gracefully without RAG chunks rather than crashing the chat
+        else:
+            relevant_chunks = retrieved_chunks
+            is_nav = is_source_location_query(clean_retrieval_question)
 
         # Step 3: Construct prompt based on retrieved evidence
         source_map: Dict[int, Tuple[Dict[str, Any], SourceCitation]] = {}
@@ -766,6 +760,32 @@ class RAGService:
 
         return clean_reply, citations, diagnostics
 
+    def retrieve_chunks(
+        self,
+        query: str,
+        top_k: int = RAG_TOP_K,
+        max_distance: float = RAG_MAX_COSINE_DISTANCE,
+        score_margin: float = RAG_SCORE_MARGIN,
+    ) -> Tuple[List[Dict[str, Any]], bool]:
+        """Run the existing embedding and hybrid retrieval path as a reusable node."""
+        clean_query = query.strip()
+        query_tokens = extract_substantive_tokens(clean_query)
+        is_nav = is_source_location_query(clean_query)
+        try:
+            query_embedding = embedding_service.embed_query(clean_query)
+            chunks = vector_store.similarity_search(
+                query_embedding=query_embedding,
+                top_k=top_k,
+                max_distance=max_distance,
+                score_margin=score_margin,
+                query_tokens=query_tokens,
+                is_navigational=is_nav,
+            )
+            return chunks, is_nav
+        except Exception as error:
+            logger.warning("Knowledge retrieval unavailable or failed: %s", error)
+            return [], is_nav
+
     def answer_question(
         self,
         question: str,
@@ -775,6 +795,7 @@ class RAGService:
         relevance_threshold: Optional[float] = None,
         retrieval_question: Optional[str] = None,
         history: Optional[List[Dict[str, Any]]] = None,
+        retrieved_chunks: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[str, List[SourceCitation]]:
         """
         Backward-compatible wrapper for answer_question_with_diagnostics.
@@ -787,6 +808,7 @@ class RAGService:
             relevance_threshold=relevance_threshold,
             retrieval_question=retrieval_question,
             history=history,
+            retrieved_chunks=retrieved_chunks,
         )
         return reply, citations
 

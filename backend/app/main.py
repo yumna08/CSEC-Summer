@@ -15,12 +15,14 @@ from app.core.config import (
     DATABASE_URL,
     GEMINI_API_KEY,
     GEMINI_MODEL,
+    USE_GRAPH_PIPELINE,
 )
 from app.core.rate_limit import limiter
 from app.core.structured_logging import configure_logging, request_id_context
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.rag import rag_service
 from app.services.memory import chat_memory
+from app.services.graph import graph_pipeline
 from app.services.vector_store import vector_store
 
 logger = logging.getLogger(__name__)
@@ -233,12 +235,17 @@ def chat(request: Request, response: Response, chat_request: ChatRequest):
         history = chat_memory.get_recent_history(session_id, turns=CHAT_HISTORY_TURNS)
         chat_memory.append_message(session_id, "user", message)
 
-        retrieval_question = rag_service.rewrite_follow_up(message, history)
-        reply, sources = rag_service.answer_question(
-            message,
-            retrieval_question=retrieval_question,
-            history=history,
-        )
+        if USE_GRAPH_PIPELINE:
+            graph_result = graph_pipeline.invoke(message, session_history=history)
+            reply = graph_result.get("final_answer", "")
+            sources = graph_result.get("sources", [])
+        else:
+            retrieval_question = rag_service.rewrite_follow_up(message, history)
+            reply, sources = rag_service.answer_question(
+                message,
+                retrieval_question=retrieval_question,
+                history=history,
+            )
         cited_source_ids = [
             value
             for source in sources
