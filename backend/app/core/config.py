@@ -39,6 +39,10 @@ RAG_RELEVANCE_THRESHOLD = RAG_MAX_COSINE_DISTANCE
 # Relative distance margin from top-ranked chunk to avoid trailing noise chunks
 RAG_SCORE_MARGIN = float(os.getenv("RAG_SCORE_MARGIN", "0.10"))
 
+# Conversation memory
+CHAT_HISTORY_TURNS = max(0, int(os.getenv("CHAT_HISTORY_TURNS", "6")))
+CHAT_RETENTION_DAYS = max(0, int(os.getenv("CHAT_RETENTION_DAYS", "30")))
+
 # Crawler & Security Settings
 APPROVED_DOMAINS = [
     d.strip().lower()

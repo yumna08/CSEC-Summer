@@ -10,6 +10,7 @@ from slowapi.errors import RateLimitExceeded
 from app.api.knowledge import router as knowledge_router
 from app.core.config import (
     CHAT_RATE_LIMIT,
+    CHAT_HISTORY_TURNS,
     CORS_ORIGINS,
     DATABASE_URL,
     GEMINI_API_KEY,
@@ -19,6 +20,7 @@ from app.core.rate_limit import limiter
 from app.core.structured_logging import configure_logging, request_id_context
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.rag import rag_service
+from app.services.memory import chat_memory
 from app.services.vector_store import vector_store
 
 logger = logging.getLogger(__name__)
@@ -226,8 +228,34 @@ def chat(request: Request, response: Response, chat_request: ChatRequest):
         )
 
     try:
-        reply, sources = rag_service.answer_question(message)
-        return ChatResponse(reply=reply, sources=sources)
+        chat_memory.purge_expired()
+        session_id = chat_memory.get_or_create_session(chat_request.session_id)
+        history = chat_memory.get_recent_history(session_id, turns=CHAT_HISTORY_TURNS)
+        chat_memory.append_message(session_id, "user", message)
+
+        retrieval_question = rag_service.rewrite_follow_up(message, history)
+        reply, sources = rag_service.answer_question(
+            message,
+            retrieval_question=retrieval_question,
+            history=history,
+        )
+        cited_source_ids = [
+            value
+            for source in sources
+            for value in (
+                source.url,
+                source.document_name,
+                source.title,
+            )
+            if value
+        ]
+        chat_memory.append_message(
+            session_id,
+            "assistant",
+            reply,
+            cited_source_ids=cited_source_ids,
+        )
+        return ChatResponse(reply=reply, sources=sources, session_id=session_id)
     except HTTPException:
         raise
     except Exception as e:
@@ -236,3 +264,10 @@ def chat(request: Request, response: Response, chat_request: ChatRequest):
             status_code=500,
             detail="An internal server error occurred while processing your request.",
         ) from None
+
+
+@app.delete("/api/chat/sessions/{session_id}")
+def delete_chat_session(session_id: str):
+    """Delete all stored turns for one opaque chat session id."""
+    deleted = chat_memory.delete_session(session_id)
+    return {"session_id": session_id, "deleted": deleted}

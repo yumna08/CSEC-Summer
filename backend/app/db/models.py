@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-from sqlalchemy import Boolean, Column, DateTime, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text
 from app.db.database import Base
 from app.schemas.knowledge import DocumentMetadata, VerificationStatus
 
@@ -111,3 +111,31 @@ class IngestionJob(Base):
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class ChatSession(Base):
+    """A persisted conversation boundary owned by an opaque client session id."""
+
+    __tablename__ = "chat_sessions"
+
+    id = Column(String(36), primary_key=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class ChatMessage(Base):
+    """One user or assistant turn belonging to a chat session."""
+
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(
+        String(36),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    cited_source_ids = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)

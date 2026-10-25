@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy import Engine, inspect
 from app.db.database import Base, get_engine
 # Import models to ensure they are registered with Base.metadata
-from app.db.models import IngestionJob, KnowledgeDocument, KnowledgeSource
+from app.db.models import ChatMessage, ChatSession, IngestionJob, KnowledgeDocument, KnowledgeSource
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,8 @@ EXPECTED_TABLES = [
     KnowledgeSource.__tablename__,
     KnowledgeDocument.__tablename__,
     IngestionJob.__tablename__,
+    ChatSession.__tablename__,
+    ChatMessage.__tablename__,
 ]
 
 
