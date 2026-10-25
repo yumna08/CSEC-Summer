@@ -1,0 +1,28 @@
+{
+  "dataset": "/home/siham-yimam/CSEC summer/backend/data/evaluation_dataset.json",
+  "model": "deterministic mock Gemini; no external API calls",
+  "retrieval": "lexical mock over persisted Chroma chunks",
+  "cases": 16,
+  "behavior_accuracy": 0.4375,
+  "citation_correctness": 0.5625,
+  "abstention_rate": 0.0625,
+  "mean_latency_ms": 3.543,
+  "results": [
+    {"id": "ss-01", "behavior_correct": true, "citation_correct": true, "abstained": false, "grounding_status": "grounded"},
+    {"id": "ss-02", "behavior_correct": false, "citation_correct": true, "abstained": false, "grounding_status": "grounded"},
+    {"id": "ss-03", "behavior_correct": false, "citation_correct": false, "abstained": false, "grounding_status": "grounded"},
+    {"id": "reg-01", "behavior_correct": false, "citation_correct": false, "abstained": false, "grounding_status": "grounded"},
+    {"id": "reg-02", "behavior_correct": false, "citation_correct": false, "abstained": false, "grounding_status": "grounded"},
+    {"id": "cal-01", "behavior_correct": true, "citation_correct": true, "abstained": false, "grounding_status": "grounded"},
+    {"id": "cal-02", "behavior_correct": true, "citation_correct": true, "abstained": false, "grounding_status": "grounded"},
+    {"id": "cal-03", "behavior_correct": true, "citation_correct": true, "abstained": false, "grounding_status": "grounded"},
+    {"id": "nav-01", "behavior_correct": false, "citation_correct": false, "abstained": false, "grounding_status": "grounded"},
+    {"id": "nav-02", "behavior_correct": true, "citation_correct": true, "abstained": false, "grounding_status": "grounded"},
+    {"id": "adv-01", "behavior_correct": false, "citation_correct": true, "abstained": false, "grounding_status": "grounded"},
+    {"id": "adv-02", "behavior_correct": true, "citation_correct": true, "abstained": false, "grounding_status": "grounded"},
+    {"id": "unidx-01", "behavior_correct": false, "citation_correct": false, "abstained": false, "grounding_status": "grounded"},
+    {"id": "unidx-02", "behavior_correct": true, "citation_correct": true, "abstained": true, "grounding_status": "abstained"},
+    {"id": "unidx-03", "behavior_correct": false, "citation_correct": false, "abstained": false, "grounding_status": "grounded"},
+    {"id": "unidx-04", "behavior_correct": false, "citation_correct": false, "abstained": false, "grounding_status": "grounded"}
+  ]
+}
