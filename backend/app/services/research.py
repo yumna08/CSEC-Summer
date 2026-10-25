@@ -11,6 +11,7 @@ from langgraph.graph import END, StateGraph
 from app.core.config import RAG_TOP_K, RESEARCH_MAX_MODEL_CALLS
 from app.schemas.research import ResearchCitation, ResearchResponse, ResearchStep
 from app.services.rag import SYSTEM_INSTRUCTION, RAGService, rag_service
+from app.services.rag import GenerationCallLimitReached
 from app.core.tracing import observe_node
 
 
@@ -88,14 +89,29 @@ class ResearchAgent:
         return state.get("model_calls", 0) < self.max_model_calls
 
     def _model_call(self, state: ResearchState, prompt: str) -> tuple[Optional[Any], int]:
-        calls = state.get("model_calls", 0)
-        if calls >= self.max_model_calls:
-            return None, calls
-        response = self.service._generate_with_retry_and_fallback(
-            prompt,
-            generation_config=None,
-        )
-        return response, calls + 1
+        starting_calls = state.get("model_calls", 0)
+        call_count = [starting_calls]
+        if call_count[0] >= self.max_model_calls:
+            return None, call_count[0]
+
+        def guard(_: str) -> None:
+            if call_count[0] >= self.max_model_calls:
+                raise GenerationCallLimitReached
+            call_count[0] += 1
+
+        try:
+            response = self.service._generate_with_retry_and_fallback(
+                prompt,
+                generation_config=None,
+                model_call_guard=guard,
+            )
+        except GenerationCallLimitReached:
+            return None, call_count[0]
+        # Mocked model clients used by tests may not invoke the guard callback;
+        # still count the logical generation operation in that case.
+        if call_count[0] == starting_calls:
+            call_count[0] += 1
+        return response, call_count[0]
 
     @observe_node("research.plan")
     def plan_node(self, state: ResearchState) -> Dict[str, Any]:

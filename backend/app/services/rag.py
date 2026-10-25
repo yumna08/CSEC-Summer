@@ -2,7 +2,7 @@ import logging
 import random
 import re
 import time
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlsplit
 from google import genai
 from google.genai import types
@@ -287,6 +287,10 @@ SYSTEM_INSTRUCTION = (
 )
 
 
+class GenerationCallLimitReached(RuntimeError):
+    """Internal signal used by bounded workflows to stop before another model call."""
+
+
 class RAGService:
     def __init__(
         self,
@@ -385,6 +389,7 @@ class RAGService:
         prompt: str,
         generation_config: Optional[types.GenerateContentConfig] = None,
         accept_function_calls: bool = False,
+        model_call_guard: Optional[Callable[[str], None]] = None,
     ) -> Any:
         """
         Generate content from Gemini with bounded exponential backoff retries
@@ -404,6 +409,8 @@ class RAGService:
             for attempt in range(retries_for_model + 1):
                 try:
                     model_call_started = time.perf_counter()
+                    if model_call_guard is not None:
+                        model_call_guard(model_name)
                     response = self.client.models.generate_content(
                         model=model_name,
                         contents=prompt,
