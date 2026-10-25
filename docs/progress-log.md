@@ -85,7 +85,7 @@ marked as not recorded rather than inferred.
 
 - Built: a capped LangGraph research workflow, structured response schemas,
   rate-limited `/api/research`, configuration, and mocked tests were added in
-  `52947eb`.
+  `52947eb`; strict per-attempt model-call enforcement was fixed in `4dbc41f`.
 - Learned: the report must derive citations from retrieved chunks and expose
   unsupported or missing items rather than silently completing uncovered
   sections.
