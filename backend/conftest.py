@@ -33,6 +33,7 @@ shutil.copyfile(
 import httpx  # noqa: E402
 import sys  # noqa: E402
 import asyncio  # noqa: E402
+import pytest  # noqa: E402
 from typing import Any  # noqa: E402
 
 sys.modules["httpx2"] = httpx
@@ -101,3 +102,12 @@ import starlette.testclient  # noqa: E402
 
 fastapi.testclient.TestClient = LocalTestClient
 starlette.testclient.TestClient = LocalTestClient
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    from app.core.rate_limit import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()

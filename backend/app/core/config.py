@@ -49,6 +49,12 @@ MAX_CRAWL_PAGES = int(os.getenv("MAX_CRAWL_PAGES", "15"))
 CRAWL_TIMEOUT_SECONDS = int(os.getenv("CRAWL_TIMEOUT_SECONDS", "10"))
 MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_BYTES", str(10 * 1024 * 1024)))  # 10 MB
 
+# Request rate limiting
+RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() in ("true", "1", "yes")
+RATE_LIMIT_STORAGE_URI = os.getenv("RATE_LIMIT_STORAGE_URI", "memory://")
+CHAT_RATE_LIMIT = os.getenv("CHAT_RATE_LIMIT", "60/minute")
+ADMIN_RATE_LIMIT = os.getenv("ADMIN_RATE_LIMIT", "10/minute")
+
 # Runtime and admin security
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")

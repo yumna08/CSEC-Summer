@@ -1,10 +1,13 @@
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api.knowledge import router as knowledge_router
-from app.core.config import DATABASE_URL, GEMINI_API_KEY, GEMINI_MODEL
+from app.core.config import CHAT_RATE_LIMIT, DATABASE_URL, GEMINI_API_KEY, GEMINI_MODEL
+from app.core.rate_limit import limiter
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.rag import rag_service
 from app.services.vector_store import vector_store
@@ -16,6 +19,9 @@ app = FastAPI(
     description="Backend API for the ASTU CampusGuide AI project with document ingestion and RAG.",
     version="0.3.0",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -144,7 +150,8 @@ def test_gemini():
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+@limiter.limit(CHAT_RATE_LIMIT)
+def chat(request: Request, response: Response, chat_request: ChatRequest):
     """
     RAG-grounded chat endpoint:
     1. Embeds query
@@ -158,7 +165,7 @@ def chat(request: ChatRequest):
             detail="Gemini API key is not configured.",
         )
 
-    message = request.message.strip()
+    message = chat_request.message.strip()
     if not message:
         raise HTTPException(
             status_code=422,

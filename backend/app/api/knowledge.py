@@ -1,8 +1,10 @@
 import logging
 from pathlib import Path
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from app.core.config import MAX_UPLOAD_SIZE_BYTES
+from app.core.rate_limit import limiter
+from app.core.config import ADMIN_RATE_LIMIT
 from app.core.security import verify_admin_authorization
 from app.schemas.knowledge import (
     DeleteDocumentResponse,
@@ -38,19 +40,20 @@ ALLOWED_MIME_TYPES = {
     dependencies=[Depends(verify_admin_authorization)],
     summary="Ingest a single approved ASTU webpage",
 )
-def ingest_url(request: IngestUrlRequest):
+@limiter.limit(ADMIN_RATE_LIMIT)
+def ingest_url(request: Request, response: Response, payload: IngestUrlRequest):
     """Ingest a single approved webpage URL after SSRF and domain checks."""
     try:
         result = ingestion_service.ingest_url(
-            url=request.url,
-            custom_title=request.source_title,
-            verification_status=request.verification_status or VerificationStatus.CANDIDATE.value,
+            url=payload.url,
+            custom_title=payload.source_title,
+            verification_status=payload.verification_status or VerificationStatus.CANDIDATE.value,
         )
         return result
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to ingest URL %s: %s", request.url, str(e))
+        logger.error("Failed to ingest URL: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to ingest URL. Check server logs.",
@@ -63,11 +66,12 @@ def ingest_url(request: IngestUrlRequest):
     dependencies=[Depends(verify_admin_authorization)],
     summary="Crawl and ingest configured approved sources and discovered PDFs",
 )
-def ingest_websites(request: Optional[IngestWebsitesRequest] = None):
+@limiter.limit(ADMIN_RATE_LIMIT)
+def ingest_websites(request: Request, response: Response, payload: Optional[IngestWebsitesRequest] = None):
     """Ingest candidate/registered ASTU websites and valid discovered PDFs."""
-    urls = request.urls if request else None
-    discover_pdfs = request.discover_pdfs if request else True
-    max_pages = request.max_pages if request and request.max_pages else 15
+    urls = payload.urls if payload else None
+    discover_pdfs = payload.discover_pdfs if payload else True
+    max_pages = payload.max_pages if payload and payload.max_pages else 15
 
     try:
         return ingestion_service.ingest_websites(
@@ -89,7 +93,10 @@ def ingest_websites(request: Optional[IngestWebsitesRequest] = None):
     dependencies=[Depends(verify_admin_authorization)],
     summary="Upload and ingest a PDF, DOCX, or TXT document",
 )
+@limiter.limit(ADMIN_RATE_LIMIT)
 async def upload_document(
+    request: Request,
+    response: Response,
     file: UploadFile = File(...),
     verification_status: str = VerificationStatus.VERIFIED.value,
 ):
@@ -164,7 +171,8 @@ def list_documents():
     dependencies=[Depends(verify_admin_authorization)],
     summary="Remove a document and its indexed chunks",
 )
-def delete_document(document_id: str):
+@limiter.limit(ADMIN_RATE_LIMIT)
+def delete_document(request: Request, response: Response, document_id: str):
     """Delete a document and purge all its indexed vector chunks."""
     deleted_chunks = vector_store.delete_document(document_id)
     return DeleteDocumentResponse(
@@ -180,7 +188,8 @@ def delete_document(document_id: str):
     dependencies=[Depends(verify_admin_authorization)],
     summary="Refresh and reindex all registered sources",
 )
-def reindex_sources():
+@limiter.limit(ADMIN_RATE_LIMIT)
+def reindex_sources(request: Request, response: Response):
     """Refresh and re-ingest all registered sources."""
     try:
         return ingestion_service.reindex_all()
