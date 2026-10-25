@@ -54,16 +54,18 @@ def test_each_graph_node_can_run_individually():
     pipeline = GraphPipeline(service)
     state = {"message": "What is the ASTU registration process?", "session_history": []}
 
-    assert pipeline.classify_node(state)["classification"] == "factual"
-    rewritten = pipeline.rewrite_node({**state, "classification": "factual"})
+    classified = pipeline.classify_node(state)
+    assert classified["classification"] == "factual"
+    rewritten = pipeline.rewrite_node({**state, **classified})
     assert rewritten["rewritten_query"] == state["message"]
 
     with patch.object(pipeline, "_normal_retrieval", return_value=[chunk()]):
-        retrieved = pipeline.retrieve_node({**state, **rewritten, "classification": "general"})
+        retrieved = pipeline.retrieve_node({**state, **classified, **rewritten, "classification": "general"})
     assert retrieved["retrieved_chunks"] == [chunk()]
 
     generated = pipeline.generate_node({
         **state,
+        **classified,
         **rewritten,
         **retrieved,
         "classification": "general",
@@ -82,6 +84,14 @@ def test_each_graph_node_can_run_individually():
     assert generated["draft_answer"]
     assert verified["citation_check"]["passed"] is True
     assert final["final_answer"] == generated["draft_answer"]
+    assert [entry["node"] for entry in final["trace"]] == [
+        "classify",
+        "rewrite",
+        "retrieve",
+        "generate",
+        "verify_citations",
+        "answer_or_abstain",
+    ]
 
 
 def test_greeting_skips_retrieval_tools_and_model(client):
@@ -109,6 +119,8 @@ def test_factual_question_calls_search_tool_once():
 
     search.assert_called_once_with(query="ASTU registration process", max_results=4)
     assert result["tool_calls"] == 1
+    assert result["trace"][2]["mode"] == "tool"
+    assert result["trace"][2]["tool_call_names"] == ["search_astu_documents"]
     config = service._client.models.generate_content.call_args.kwargs["config"]
     assert len(config.tools[0].function_declarations) == 2
 

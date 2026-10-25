@@ -26,6 +26,11 @@ paths keep the same chat response contract and reuse the existing retrieval,
 grounding, citation, and abstention logic. See [docs/architecture.md](docs/architecture.md)
 for the detailed graph.
 
+The saved six-question graph diagnosis is documented in
+[docs/graph-diagnosis-c1.md](docs/graph-diagnosis-c1.md). A corrected
+12-question real-model comparison was not produced because Gemini quota and
+fallback availability were blocked; the default remains `USE_GRAPH_PIPELINE=false`.
+
 ## Setup without Docker
 
 Backend:

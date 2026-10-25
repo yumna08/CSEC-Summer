@@ -33,6 +33,7 @@ class GraphState(TypedDict, total=False):
     final_answer: str
     tool_calls: int
     tool_call_names: List[str]
+    trace: List[Dict[str, Any]]
 
 
 def _tool_declarations() -> List[types.Tool]:
@@ -232,19 +233,44 @@ class GraphPipeline:
         workflow.add_edge("answer_or_abstain", END)
         return workflow.compile()
 
+    @staticmethod
+    def _trace(state: GraphState, node: str, **details: Any) -> List[Dict[str, Any]]:
+        """Append redacted node facts without retaining user text or secrets."""
+        return [*state.get("trace", []), {"node": node, **details}]
+
     def classify_node(self, state: GraphState) -> Dict[str, Any]:
-        return {"classification": _classify(state["message"])}
+        classification = _classify(state["message"])
+        return {
+            "classification": classification,
+            "trace": self._trace(state, "classify", classification=classification),
+        }
 
     def route_after_classify(self, state: GraphState) -> str:
         return "greeting" if state.get("classification") == "greeting" else "continue"
 
     def rewrite_node(self, state: GraphState) -> Dict[str, Any]:
         if state.get("classification") == "out_of_scope":
-            return {"rewritten_query": state["message"]}
+            return {
+                "rewritten_query": state["message"],
+                "trace": self._trace(
+                    state,
+                    "rewrite",
+                    skipped=True,
+                    changed=False,
+                    reason="out_of_scope",
+                ),
+            }
+        rewritten_query = self.service.rewrite_follow_up(
+            state["message"], state.get("session_history", [])
+        )
         return {
-            "rewritten_query": self.service.rewrite_follow_up(
-                state["message"], state.get("session_history", [])
-            )
+            "rewritten_query": rewritten_query,
+            "trace": self._trace(
+                state,
+                "rewrite",
+                skipped=False,
+                changed=rewritten_query != state["message"].strip(),
+            ),
         }
 
     def _normal_retrieval(self, query: str) -> List[Dict[str, Any]]:
@@ -274,6 +300,8 @@ class GraphPipeline:
                     "retrieved_chunks": self._normal_retrieval(query),
                     "tool_calls": 0,
                     "tool_call_names": [],
+                    "retrieval_mode": "normal_fallback",
+                    "retrieval_fallback_reason": "no_tool_call",
                 }
             retrieved: List[Dict[str, Any]] = []
             names: List[str] = []
@@ -284,6 +312,8 @@ class GraphPipeline:
                         "retrieved_chunks": self._normal_retrieval(query),
                         "tool_calls": 0,
                         "tool_call_names": [],
+                        "retrieval_mode": "normal_fallback",
+                        "retrieval_fallback_reason": "malformed_tool_call",
                     }
                 if name == "search_astu_documents":
                     result = search_astu_documents(**args)
@@ -298,34 +328,70 @@ class GraphPipeline:
                     "retrieved_chunks": self._normal_retrieval(query),
                     "tool_calls": len(names),
                     "tool_call_names": names,
+                    "retrieval_mode": "normal_fallback",
+                    "retrieval_fallback_reason": "empty_tool_result",
                 }
             return {
                 "retrieved_chunks": list(unique.values()),
                 "tool_calls": len(names),
                 "tool_call_names": names,
+                "retrieval_mode": "tool",
             }
         except (TypeError, ValueError, KeyError):
             return {
                 "retrieved_chunks": self._normal_retrieval(query),
                 "tool_calls": 0,
                 "tool_call_names": [],
+                "retrieval_mode": "normal_fallback",
+                "retrieval_fallback_reason": "invalid_tool_arguments",
             }
         except Exception:
             return {
                 "retrieved_chunks": self._normal_retrieval(query),
                 "tool_calls": 0,
                 "tool_call_names": [],
+                "retrieval_mode": "normal_fallback",
+                "retrieval_fallback_reason": "tool_error",
             }
 
     def retrieve_node(self, state: GraphState) -> Dict[str, Any]:
         if state.get("classification") == "out_of_scope":
-            return {"retrieved_chunks": [], "tool_calls": 0, "tool_call_names": []}
+            return {
+                "retrieved_chunks": [],
+                "tool_calls": 0,
+                "tool_call_names": [],
+                "retrieval_mode": "skipped",
+                "trace": self._trace(state, "retrieve", mode="skipped", retrieved_count=0),
+            }
         if state.get("classification") == "factual":
-            return self._tool_retrieval(state)
-        return {
+            result = self._tool_retrieval(state)
+            return {
+                **result,
+                "trace": self._trace(
+                    state,
+                    "retrieve",
+                    mode=result.get("retrieval_mode", "unknown"),
+                    fallback_reason=result.get("retrieval_fallback_reason"),
+                    tool_calls=result.get("tool_calls", 0),
+                    tool_call_names=result.get("tool_call_names", []),
+                    retrieved_count=len(result.get("retrieved_chunks", [])),
+                ),
+            }
+        result = {
             "retrieved_chunks": self._normal_retrieval(state.get("rewritten_query", state["message"])),
             "tool_calls": 0,
             "tool_call_names": [],
+            "retrieval_mode": "normal",
+        }
+        return {
+            **result,
+            "trace": self._trace(
+                state,
+                "retrieve",
+                mode="normal",
+                tool_calls=0,
+                retrieved_count=len(result["retrieved_chunks"]),
+            ),
         }
 
     def generate_node(self, state: GraphState) -> Dict[str, Any]:
@@ -343,6 +409,14 @@ class GraphPipeline:
             "draft_answer": answer,
             "sources": sources,
             "diagnostics": diagnostics,
+            "trace": self._trace(
+                state,
+                "generate",
+                grounding_status=diagnostics.get("grounding_status"),
+                retrieved_count=diagnostics.get("retrieved_count", 0),
+                source_count=len(sources),
+                draft_nonempty=bool(answer.strip()),
+            ),
         }
 
     def verify_citations_node(self, state: GraphState) -> Dict[str, Any]:
@@ -358,7 +432,14 @@ class GraphPipeline:
                 "passed": passed,
                 "citations_count": len(sources),
                 "grounding_status": diagnostics.get("grounding_status"),
-            }
+            },
+            "trace": self._trace(
+                state,
+                "verify_citations",
+                passed=passed,
+                citations_count=len(sources),
+                grounding_status=diagnostics.get("grounding_status"),
+            ),
         }
 
     def answer_or_abstain_node(self, state: GraphState) -> Dict[str, Any]:
@@ -366,10 +447,18 @@ class GraphPipeline:
             return {
                 "final_answer": "Hello! I can help with ASTU information, campus navigation, and study guidance.",
                 "sources": [],
+                "trace": self._trace(state, "answer_or_abstain", outcome="greeting"),
             }
         if state.get("citation_check", {}).get("passed"):
-            return {"final_answer": state.get("draft_answer", "")}
-        return {"final_answer": _ABSTENTION_REPLY, "sources": []}
+            return {
+                "final_answer": state.get("draft_answer", ""),
+                "trace": self._trace(state, "answer_or_abstain", outcome="answer"),
+            }
+        return {
+            "final_answer": _ABSTENTION_REPLY,
+            "sources": [],
+            "trace": self._trace(state, "answer_or_abstain", outcome="abstain"),
+        }
 
     def invoke(self, message: str, session_history: Optional[List[Dict[str, Any]]] = None) -> GraphState:
         return self.graph.invoke(

@@ -226,12 +226,14 @@ def _score_result(item: Dict[str, Any], answer: str, sources: List[Any], diagnos
         "retrieved_count": diagnostics.get("retrieved_count", 0),
         "grounding_status": diagnostics.get("grounding_status"),
         "failure_reasons": failure_reasons,
+        "node_trace": diagnostics.get("node_trace", []),
     }
 
 
 def evaluate_real(use_graph: bool = False, limit: int = 6, delay_seconds: float = 1.5) -> Dict[str, Any]:
     """Run a small real-model evaluation, failing closed on API/quota errors."""
     from google import genai
+    from google.genai import types
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     dataset_path = DATA_DIR / "evaluation_dataset.json"
@@ -261,9 +263,16 @@ def evaluate_real(use_graph: bool = False, limit: int = 6, delay_seconds: float 
         # retries during this intentionally small evaluation run.
         max_retries=0,
     )
-    service._client = CountingClient(genai.Client(api_key=api_key), counter, delay_seconds)
+    # Bound external calls so quota/network failures produce a saved report
+    # instead of leaving a long-running evaluation process hanging.
+    http_options = types.HttpOptions(timeout=60000)
+    service._client = CountingClient(
+        genai.Client(api_key=api_key, http_options=http_options), counter, delay_seconds
+    )
     original_embedding_client = embedding_service._client
-    embedding_service._client = CountingClient(genai.Client(api_key=api_key), counter, delay_seconds)
+    embedding_service._client = CountingClient(
+        genai.Client(api_key=api_key, http_options=http_options), counter, delay_seconds
+    )
     graph_module = None
     original_graph_service = None
     graph = None
@@ -290,6 +299,7 @@ def evaluate_real(use_graph: bool = False, limit: int = 6, delay_seconds: float 
                     answer = state.get("final_answer", "")
                     sources = state.get("sources", [])
                     diagnostics = state.get("diagnostics", {})
+                    diagnostics = {**diagnostics, "node_trace": state.get("trace", [])}
                 scored = _score_result(item, answer, sources, diagnostics)
                 scored["latency_ms"] = round((time.perf_counter() - started) * 1000, 3)
                 scored["model_calls"] = counter["model_calls"] - calls_before
