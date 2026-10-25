@@ -24,6 +24,9 @@ frontend/coverage/
 .DS_Store
 .idea/
 .vscode/
+.aws/
+.codex/
+.agents/
 
 # Vector Store and local data
 data/
