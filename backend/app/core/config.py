@@ -43,6 +43,7 @@ RAG_SCORE_MARGIN = float(os.getenv("RAG_SCORE_MARGIN", "0.10"))
 CHAT_HISTORY_TURNS = max(0, int(os.getenv("CHAT_HISTORY_TURNS", "6")))
 CHAT_RETENTION_DAYS = max(0, int(os.getenv("CHAT_RETENTION_DAYS", "30")))
 USE_GRAPH_PIPELINE = os.getenv("USE_GRAPH_PIPELINE", "false").lower() in ("true", "1", "yes")
+RESEARCH_MAX_MODEL_CALLS = max(1, int(os.getenv("RESEARCH_MAX_MODEL_CALLS", "8")))
 
 # Crawler & Security Settings
 APPROVED_DOMAINS = [

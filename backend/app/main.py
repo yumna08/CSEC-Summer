@@ -20,10 +20,12 @@ from app.core.config import (
 from app.core.rate_limit import limiter
 from app.core.structured_logging import configure_logging, request_id_context
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.research import ResearchRequest, ResearchResponse
 from app.services.rag import rag_service
 from app.services.memory import chat_memory
 from app.services.graph import graph_pipeline
 from app.services.vector_store import vector_store
+from app.services.research import research_agent
 
 logger = logging.getLogger(__name__)
 configure_logging()
@@ -278,3 +280,25 @@ def delete_chat_session(session_id: str):
     """Delete all stored turns for one opaque chat session id."""
     deleted = chat_memory.delete_session(session_id)
     return {"session_id": session_id, "deleted": deleted}
+
+
+@app.post("/api/research", response_model=ResearchResponse)
+@limiter.limit(CHAT_RATE_LIMIT)
+def research(request: Request, response: Response, research_request: ResearchRequest):
+    """Build a bounded, cited report from indexed ASTU evidence."""
+    if not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API key is not configured.",
+        )
+    try:
+        return research_agent.invoke(research_request.topic)
+    except HTTPException:
+        raise
+    except Exception:
+        # Deliberately omit the topic from logs and exception details.
+        logger.exception("Research request failed")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred while preparing the research report.",
+        ) from None

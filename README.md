@@ -101,6 +101,7 @@ Backend variables are documented in `backend/.env.example`:
 | `CHAT_HISTORY_TURNS` | Recent turns in prompts | `6` |
 | `CHAT_RETENTION_DAYS` | Session retention period | `30` |
 | `USE_GRAPH_PIPELINE` | Select LangGraph path | `false` |
+| `RESEARCH_MAX_MODEL_CALLS` | Research model-call cap | `8` |
 | `APPROVED_DOMAINS` | Allowed ingestion domains | `astu.edu.et,portal.astu.edu.et` |
 | `MAX_CRAWL_PAGES` | Website crawl limit | `15` |
 | `CRAWL_TIMEOUT_SECONDS` | Crawler timeout | `10` |
@@ -142,6 +143,15 @@ Other endpoints are `POST /api/knowledge/ingest-websites`,
 `POST /api/knowledge/upload`, and `POST /api/knowledge/reindex`. The source
 registry and indexed document status are available through the read-only
 knowledge endpoints.
+
+## Research reports
+
+`POST /api/research` accepts `{ "topic": "..." }` and returns a structured
+report with a summary, sub-question steps, grounded citations, required
+documents, contacts, and unsupported or missing items. The workflow plans at
+most four sub-questions, uses the legacy retriever for each, and stops when
+`RESEARCH_MAX_MODEL_CALLS` is reached. It explicitly says when the indexed
+knowledge base does not cover part of the topic.
 
 ## Tests and evaluation
 
