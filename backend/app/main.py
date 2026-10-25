@@ -1,4 +1,6 @@
 import logging
+import time
+from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
@@ -14,11 +16,13 @@ from app.core.config import (
     GEMINI_MODEL,
 )
 from app.core.rate_limit import limiter
+from app.core.structured_logging import configure_logging, request_id_context
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.rag import rag_service
 from app.services.vector_store import vector_store
 
 logger = logging.getLogger(__name__)
+configure_logging()
 
 app = FastAPI(
     title="ASTU CampusGuide AI API",
@@ -28,6 +32,52 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _request_id(request: Request) -> str:
+    supplied = request.headers.get("X-Request-ID", "").strip()
+    if supplied and len(supplied) <= 128 and all(ord(char) >= 32 for char in supplied):
+        return supplied
+    return str(uuid4())
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    request_id = _request_id(request)
+    token = request_id_context.set(request_id)
+    started = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        latency_ms = round((time.perf_counter() - started) * 1000, 2)
+        logger.exception(
+            "request_failed",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": 500,
+                "latency_ms": latency_ms,
+            },
+        )
+        request_id_context.reset(token)
+        raise
+
+    latency_ms = round((time.perf_counter() - started) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    logger.info(
+        "request_completed",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "latency_ms": latency_ms,
+        },
+    )
+    request_id_context.reset(token)
+    return response
 
 app.add_middleware(
     CORSMiddleware,
