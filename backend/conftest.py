@@ -16,6 +16,8 @@ os.environ["DATA_DIR"] = str(_TEST_RUNTIME_DIR / "data")
 os.environ["CHROMA_PERSIST_DIR"] = str(_TEST_RUNTIME_DIR / "chroma_db")
 os.environ["REGISTRY_FILE"] = str(_TEST_RUNTIME_DIR / "source_registry.json")
 os.environ.setdefault("GEMINI_API_KEY", "")
+os.environ["APP_ENV"] = "testing"
+os.environ["REQUIRE_ADMIN_AUTH"] = "false"
 
 _TEST_DATA_DIR = _TEST_RUNTIME_DIR / "data"
 _TEST_DATA_DIR.mkdir(parents=True, exist_ok=True)

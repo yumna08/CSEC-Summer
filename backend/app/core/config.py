@@ -49,9 +49,21 @@ MAX_CRAWL_PAGES = int(os.getenv("MAX_CRAWL_PAGES", "15"))
 CRAWL_TIMEOUT_SECONDS = int(os.getenv("CRAWL_TIMEOUT_SECONDS", "10"))
 MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_BYTES", str(10 * 1024 * 1024)))  # 10 MB
 
-# Admin Security Key (optional in dev, recommended in production)
+# Runtime and admin security
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
-REQUIRE_ADMIN_AUTH = os.getenv("REQUIRE_ADMIN_AUTH", "false").lower() in ("true", "1", "yes")
+REQUIRE_ADMIN_AUTH = os.getenv("REQUIRE_ADMIN_AUTH", "true").lower() in ("true", "1", "yes")
+
+
+def validate_production_security(app_env: str = APP_ENV, admin_api_key: str = ADMIN_API_KEY) -> None:
+    """Refuse production startup when administrative authentication is unusable."""
+    if app_env in {"production", "prod"} and not admin_api_key.strip():
+        raise RuntimeError(
+            "Production startup refused: ADMIN_API_KEY must be configured."
+        )
+
+
+validate_production_security()
 
 # Database (PostgreSQL / Neon)
 DATABASE_URL = os.getenv("DATABASE_URL", "")
