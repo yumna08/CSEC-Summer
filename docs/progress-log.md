@@ -80,3 +80,16 @@ marked as not recorded rather than inferred.
 - Test result: the commit was preceded by 155 passing backend tests from both
   repository locations, frontend lint, and TypeScript checks.
 - Next step: implement the capped research-agent workflow.
+
+## Stage C3 — research agent
+
+- Built: a capped LangGraph research workflow, structured response schemas,
+  rate-limited `/api/research`, configuration, and mocked tests were added in
+  `52947eb`.
+- Learned: the report must derive citations from retrieved chunks and expose
+  unsupported or missing items rather than silently completing uncovered
+  sections.
+- Test result: the commit was preceded by 160 passing backend tests from both
+  repository locations, frontend lint, and TypeScript checks.
+- Next step: add optional tracing only if it can remain disabled without
+  changing application or test behavior.
