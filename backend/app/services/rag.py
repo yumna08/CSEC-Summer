@@ -379,7 +379,12 @@ class RAGService:
             logger.warning("Follow-up rewrite failed; using original query (%s)", error.__class__.__name__)
         return clean_question
 
-    def _generate_with_retry_and_fallback(self, prompt: str) -> Any:
+    def _generate_with_retry_and_fallback(
+        self,
+        prompt: str,
+        generation_config: Optional[types.GenerateContentConfig] = None,
+        accept_function_calls: bool = False,
+    ) -> Any:
         """
         Generate content from Gemini with bounded exponential backoff retries
         and graceful model fallback for transient failures (503 spikes, 429 rate/quota limits).
@@ -400,11 +405,22 @@ class RAGService:
                     response = self.client.models.generate_content(
                         model=model_name,
                         contents=prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=SYSTEM_INSTRUCTION,
-                        ),
+                        config=generation_config
+                        or types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
                     )
-                    if response and response.text:
+                    has_text = bool(response and getattr(response, "text", None))
+                    has_function_calls = bool(
+                        response
+                        and (
+                            getattr(response, "function_calls", None)
+                            or any(
+                                getattr(part, "function_call", None) is not None
+                                for candidate in (getattr(response, "candidates", None) or [])
+                                for part in (getattr(getattr(candidate, "content", None), "parts", None) or [])
+                            )
+                        )
+                    )
+                    if response and (has_text or (accept_function_calls and has_function_calls)):
                         if model_idx > 0:
                             logger.info(
                                 "Primary model '%s' unavailable; successfully generated response with fallback model '%s'.",

@@ -1,0 +1,91 @@
+{
+  "status": "completed",
+  "pipeline": "graph",
+  "model_type": "real Gemini model, 6 questions",
+  "questions_requested": 6,
+  "delay_seconds_between_model_calls": 1.5,
+  "fallback_models": "gemini-flash-latest,gemini-flash-lite-latest",
+  "retries_per_model": 0,
+  "results": [
+    {
+      "id": "ss-01",
+      "behavior_correct": true,
+      "citation_correct": true,
+      "abstained": false,
+      "latency_ms": 16769.425,
+      "model_calls": 3,
+      "retrieved_count": 2,
+      "grounding_status": "grounded",
+      "failure_reasons": []
+    },
+    {
+      "id": "reg-01",
+      "behavior_correct": true,
+      "citation_correct": true,
+      "abstained": false,
+      "latency_ms": 18219.828,
+      "model_calls": 5,
+      "retrieved_count": 2,
+      "grounding_status": "grounded",
+      "failure_reasons": []
+    },
+    {
+      "id": "cal-01",
+      "behavior_correct": false,
+      "citation_correct": false,
+      "abstained": false,
+      "latency_ms": 12504.079,
+      "model_calls": 3,
+      "retrieved_count": 1,
+      "grounding_status": "grounded",
+      "failure_reasons": [
+        "bad citation"
+      ]
+    },
+    {
+      "id": "reg-02",
+      "behavior_correct": false,
+      "citation_correct": false,
+      "abstained": true,
+      "latency_ms": 30058.759,
+      "model_calls": 3,
+      "retrieved_count": 1,
+      "grounding_status": "abstained",
+      "failure_reasons": [
+        "wrong abstention",
+        "bad citation"
+      ]
+    },
+    {
+      "id": "adv-01",
+      "behavior_correct": false,
+      "citation_correct": false,
+      "abstained": false,
+      "latency_ms": 10273.504,
+      "model_calls": 2,
+      "retrieved_count": 0,
+      "grounding_status": "general_advice",
+      "failure_reasons": [
+        "retrieval miss",
+        "bad citation"
+      ]
+    },
+    {
+      "id": "unidx-01",
+      "behavior_correct": true,
+      "citation_correct": true,
+      "abstained": true,
+      "latency_ms": 21809.729,
+      "model_calls": 7,
+      "retrieved_count": 1,
+      "grounding_status": "abstained",
+      "failure_reasons": []
+    }
+  ],
+  "questions_completed": 6,
+  "accuracy": 0.5,
+  "citation_correctness": 0.5,
+  "abstention_rate": 0.3333,
+  "average_latency_ms": 18272.554,
+  "model_calls_per_question": 3.833
+}

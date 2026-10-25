@@ -1,0 +1,86 @@
+{
+  "status": "completed",
+  "pipeline": "legacy",
+  "model_type": "real Gemini model, 6 questions",
+  "questions_requested": 6,
+  "delay_seconds_between_model_calls": 1.5,
+  "fallback_models": "gemini-flash-latest,gemini-flash-lite-latest",
+  "retries_per_model": 0,
+  "results": [
+    {
+      "id": "ss-01",
+      "behavior_correct": true,
+      "citation_correct": true,
+      "abstained": false,
+      "latency_ms": 9745.98,
+      "model_calls": 2,
+      "retrieved_count": 2,
+      "grounding_status": "grounded",
+      "failure_reasons": []
+    },
+    {
+      "id": "reg-01",
+      "behavior_correct": true,
+      "citation_correct": true,
+      "abstained": false,
+      "latency_ms": 11553.09,
+      "model_calls": 2,
+      "retrieved_count": 2,
+      "grounding_status": "grounded",
+      "failure_reasons": []
+    },
+    {
+      "id": "cal-01",
+      "behavior_correct": true,
+      "citation_correct": true,
+      "abstained": false,
+      "latency_ms": 8491.139,
+      "model_calls": 2,
+      "retrieved_count": 4,
+      "grounding_status": "grounded",
+      "failure_reasons": []
+    },
+    {
+      "id": "reg-02",
+      "behavior_correct": true,
+      "citation_correct": true,
+      "abstained": false,
+      "latency_ms": 7987.681,
+      "model_calls": 2,
+      "retrieved_count": 3,
+      "grounding_status": "grounded",
+      "failure_reasons": []
+    },
+    {
+      "id": "adv-01",
+      "behavior_correct": false,
+      "citation_correct": false,
+      "abstained": false,
+      "latency_ms": 9832.847,
+      "model_calls": 2,
+      "retrieved_count": 0,
+      "grounding_status": "general_advice",
+      "failure_reasons": [
+        "retrieval miss",
+        "bad citation"
+      ]
+    },
+    {
+      "id": "unidx-01",
+      "behavior_correct": true,
+      "citation_correct": true,
+      "abstained": true,
+      "latency_ms": 6169.743,
+      "model_calls": 2,
+      "retrieved_count": 1,
+      "grounding_status": "abstained",
+      "failure_reasons": []
+    }
+  ],
+  "questions_completed": 6,
+  "accuracy": 0.8333,
+  "citation_correctness": 0.8333,
+  "abstention_rate": 0.1667,
+  "average_latency_ms": 8963.413,
+  "model_calls_per_question": 2.0
+}

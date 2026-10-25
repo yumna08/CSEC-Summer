@@ -260,13 +260,13 @@ class GraphPipeline:
             f"Question: {state['message']}\nSearch query: {query}"
         )
         try:
-            response = self.service.client.models.generate_content(
-                model=self.service.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
+            response = self.service._generate_with_retry_and_fallback(
+                prompt,
+                generation_config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
                     tools=TOOL_DECLARATIONS,
                 ),
+                accept_function_calls=True,
             )
             calls = _extract_function_calls(response)
             if not calls:
@@ -381,4 +381,3 @@ class GraphPipeline:
 
 
 graph_pipeline = GraphPipeline()
-
