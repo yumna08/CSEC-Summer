@@ -31,6 +31,10 @@ The saved six-question graph diagnosis is documented in
 12-question real-model comparison was not produced because Gemini quota and
 fallback availability were blocked; the default remains `USE_GRAPH_PIPELINE=false`.
 
+The read-only MCP server is documented in [docs/mcp.md](docs/mcp.md). It
+provides indexed knowledge search and the `astu://sources/catalog` resource;
+it has no ingestion, deletion, or reindex operations.
+
 ## Setup without Docker
 
 Backend:
@@ -213,7 +217,7 @@ study guidance without ASTU citations when the question is clearly general.
 - Rate limiting defaults to in-memory storage and is not shared across workers.
 - PostgreSQL table initialization is additive at startup; a production schema
   migration process should be added before frequent schema evolution.
-- The current repository does not yet include the requested MCP server,
-  research-agent endpoint, or optional tracing backend.
+- The current repository does not yet include the research-agent endpoint or
+  optional tracing backend.
 - Retrieval quality depends on the freshness and coverage of the approved
   indexed sources; unsupported university facts remain unavailable.

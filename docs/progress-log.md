@@ -68,3 +68,15 @@ marked as not recorded rather than inferred.
   phase commits themselves do not contain Docker command output.
 - Next step: add any remaining MCP, research-agent, and tracing work, then
   perform a corrected real evaluation.
+
+## Stage C2 — MCP server
+
+- Built: the pinned official MCP SDK, read-only search tool, indexed-source
+  catalog resource, direct tests, and Claude Desktop instructions were added in
+  `9e34741`.
+- Learned: MCP 2.x uses `MCPServer` and its `httpx2` dependency can conflict
+  with the test harness alias; the test setup restores the real SDK dependency
+  only for MCP tests.
+- Test result: the commit was preceded by 155 passing backend tests from both
+  repository locations, frontend lint, and TypeScript checks.
+- Next step: implement the capped research-agent workflow.
