@@ -2,6 +2,7 @@
   "status": "completed",
   "pipeline": "graph",
   "model_type": "real Gemini model, 6 questions",
+  "scoring_version": "pre-general-advice-scoring-fix; rerun blocked by observed quota exhaustion",
   "questions_requested": 6,
   "delay_seconds_between_model_calls": 1.5,
   "fallback_models": "gemini-flash-latest,gemini-flash-lite-latest",

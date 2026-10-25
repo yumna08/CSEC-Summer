@@ -173,6 +173,7 @@ def _safe_error(error: Exception, api_key: str) -> str:
 
 def _score_result(item: Dict[str, Any], answer: str, sources: List[Any], diagnostics: Dict[str, Any]) -> Dict[str, Any]:
     expected_behavior = item["expected_behavior"]
+    is_general_advice = item.get("category") == "general_student_advice"
     source_text = " ".join(getattr(source, "title", "").lower() for source in sources)
     answer_text = answer.lower()
     expected_sources = [source.lower() for source in item["expected_sources"]]
@@ -181,7 +182,12 @@ def _score_result(item: Dict[str, Any], answer: str, sources: List[Any], diagnos
     evidence_match = not expected_terms or all(term in answer_text for term in expected_terms)
     actual_abstained = diagnostics.get("grounding_status") == "abstained"
 
-    if expected_behavior == "answer":
+    if expected_behavior == "answer" and is_general_advice:
+        # General study guidance intentionally bypasses ASTU retrieval. It is
+        # correct only when it is answered without fabricated ASTU citations.
+        behavior_correct = not actual_abstained and not sources and evidence_match
+        citation_correct = not sources
+    elif expected_behavior == "answer":
         behavior_correct = not actual_abstained and bool(sources) and source_match and evidence_match
         citation_correct = bool(sources) and source_match
     elif expected_behavior == "abstain":
@@ -197,7 +203,7 @@ def _score_result(item: Dict[str, Any], answer: str, sources: List[Any], diagnos
 
     failure_reasons: List[str] = []
     if not behavior_correct:
-        if expected_behavior == "answer" and not diagnostics.get("retrieved_count"):
+        if expected_behavior == "answer" and not is_general_advice and not diagnostics.get("retrieved_count"):
             failure_reasons.append("retrieval miss")
         if (expected_behavior == "answer" and actual_abstained) or (
             expected_behavior == "abstain" and not actual_abstained
