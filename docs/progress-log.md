@@ -69,6 +69,18 @@ marked as not recorded rather than inferred.
 - Next step: add any remaining MCP, research-agent, and tracing work, then
   perform a corrected real evaluation.
 
+## Stage C1 — graph diagnosis
+
+- Built: saved-report comparison, redacted graph node traces, bounded real
+  evaluator requests, and the C1 diagnosis were added in `e703766`.
+- Learned: the six-question reports identify `cal-01` and `reg-02` as graph
+  regressions but do not contain enough node-level evidence to assign a cause;
+  the attempted 12-question rerun was blocked by observed Gemini quota and
+  fallback errors.
+- Test result: the commit was preceded by 147 passing backend tests from both
+  repository locations, frontend lint, and TypeScript checks.
+- Next step: add the read-only MCP server and source catalog.
+
 ## Stage C2 — MCP server
 
 - Built: the pinned official MCP SDK, read-only search tool, indexed-source
