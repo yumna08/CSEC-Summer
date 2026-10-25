@@ -1,8 +1,10 @@
 import logging
+import time
 from typing import List
 from google import genai
 from google.genai.errors import APIError
 from app.core.config import GEMINI_API_KEY, GEMINI_EMBEDDING_MODEL
+from app.core.tracing import tracer
 
 logger = logging.getLogger(__name__)
 
@@ -37,17 +39,34 @@ class EmbeddingService:
             raise ValueError("Query string cannot be empty.")
 
         try:
+            started = time.perf_counter()
             response = self.client.models.embed_content(
                 model=self.model,
                 contents=query,
+            )
+            tracer.record_model_call(
+                "embedding",
+                self.model,
+                round((time.perf_counter() - started) * 1000, 3),
+                response,
             )
             if not response.embeddings or not response.embeddings[0].values:
                 raise ValueError("Embedding model returned an empty embedding.")
             return list(response.embeddings[0].values)
         except APIError as e:
+            tracer.record_model_call(
+                "embedding",
+                self.model,
+                round((time.perf_counter() - started) * 1000, 3),
+            )
             logger.error("Gemini API error during query embedding: %s", str(e))
             raise RuntimeError(f"Embedding API error: {e.message or 'Request failed'}") from e
         except Exception as e:
+            tracer.record_model_call(
+                "embedding",
+                self.model,
+                round((time.perf_counter() - started) * 1000, 3),
+            )
             logger.error("Failed to generate query embedding: %s", str(e))
             raise RuntimeError(f"Embedding generation failed: {str(e)}") from e
 

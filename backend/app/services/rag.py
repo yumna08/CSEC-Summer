@@ -20,6 +20,7 @@ from app.core.config import (
 )
 from app.schemas.chat import SourceCitation
 from app.services.embeddings import embedding_service
+from app.core.tracing import tracer
 from app.services.vector_store import vector_store
 
 logger = logging.getLogger(__name__)
@@ -402,11 +403,18 @@ class RAGService:
             retries_for_model = self.max_retries
             for attempt in range(retries_for_model + 1):
                 try:
+                    model_call_started = time.perf_counter()
                     response = self.client.models.generate_content(
                         model=model_name,
                         contents=prompt,
                         config=generation_config
                         or types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
+                    )
+                    tracer.record_model_call(
+                        "generate",
+                        model_name,
+                        round((time.perf_counter() - model_call_started) * 1000, 3),
+                        response,
                     )
                     has_text = bool(response and getattr(response, "text", None))
                     has_function_calls = bool(
@@ -435,6 +443,11 @@ class RAGService:
                             attempt + 1,
                         )
                 except APIError as e:
+                    tracer.record_model_call(
+                        "generate",
+                        model_name,
+                        round((time.perf_counter() - model_call_started) * 1000, 3),
+                    )
                     last_error = e
                     err_str = str(e)
                     code = getattr(e, "code", None)
@@ -483,6 +496,11 @@ class RAGService:
                     break
 
                 except (TimeoutError, ConnectionError) as e:
+                    tracer.record_model_call(
+                        "generate",
+                        model_name,
+                        round((time.perf_counter() - model_call_started) * 1000, 3),
+                    )
                     last_error = e
                     if attempt < retries_for_model:
                         backoff = 0.5 * (2 ** attempt)
@@ -501,6 +519,11 @@ class RAGService:
                 except HTTPException:
                     raise
                 except Exception as e:
+                    tracer.record_model_call(
+                        "generate",
+                        model_name,
+                        round((time.perf_counter() - model_call_started) * 1000, 3),
+                    )
                     last_error = e
                     logger.exception(
                         "Non-retryable error during generation with model '%s': %s",

@@ -37,3 +37,8 @@ The graph caps tool calls at two per request and falls back to the normal
 retrieval function when a function call is malformed or unavailable. Retrieved
 text and conversation history remain untrusted data; the existing Gemini
 grounding instruction and independent citation verifier remain authoritative.
+
+Optional Langfuse spans cover graph/research nodes and model calls. Tracing is
+disabled by default and sends only structural metadata, latency, and available
+token counts; prompts, user messages, API keys, and retrieved text are never
+sent.

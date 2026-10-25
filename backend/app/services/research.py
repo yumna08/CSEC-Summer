@@ -11,6 +11,7 @@ from langgraph.graph import END, StateGraph
 from app.core.config import RAG_TOP_K, RESEARCH_MAX_MODEL_CALLS
 from app.schemas.research import ResearchCitation, ResearchResponse, ResearchStep
 from app.services.rag import SYSTEM_INSTRUCTION, RAGService, rag_service
+from app.core.tracing import observe_node
 
 
 MAX_SUBQUESTIONS = 4
@@ -96,6 +97,7 @@ class ResearchAgent:
         )
         return response, calls + 1
 
+    @observe_node("research.plan")
     def plan_node(self, state: ResearchState) -> Dict[str, Any]:
         topic = state["topic"].strip()
         if not self._can_call(state):
@@ -129,6 +131,7 @@ class ResearchAgent:
             "unsupported_or_missing_items": missing,
         }
 
+    @observe_node("research.retrieve")
     def retrieve_node(self, state: ResearchState) -> Dict[str, Any]:
         steps: List[Dict[str, Any]] = []
         missing = list(state.get("unsupported_or_missing_items", []))
@@ -199,6 +202,7 @@ class ResearchAgent:
             "claims": [],
         }
 
+    @observe_node("research.synthesize")
     def synthesize_node(self, state: ResearchState) -> Dict[str, Any]:
         safe_draft = self._safe_draft(state)
         if not self._can_call(state):
@@ -239,6 +243,7 @@ class ResearchAgent:
         }
         return {"draft": draft, "claims": claims, "model_calls": calls}
 
+    @observe_node("research.critic")
     def critic_node(self, state: ResearchState) -> Dict[str, Any]:
         claims = _clean_strings(state.get("claims", []), limit=20)
         missing = list(state.get("unsupported_or_missing_items", []))

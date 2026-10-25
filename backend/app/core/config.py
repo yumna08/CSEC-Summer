@@ -63,6 +63,14 @@ ADMIN_RATE_LIMIT = os.getenv("ADMIN_RATE_LIMIT", "10/minute")
 
 # Runtime and admin security
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
+
+# Optional observability; disabled unless explicitly enabled and configured.
+LANGFUSE_ENABLED = os.getenv("LANGFUSE_ENABLED", "false").lower() in ("true", "1", "yes")
+LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")
+LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+LANGFUSE_ENVIRONMENT = os.getenv("LANGFUSE_ENVIRONMENT", APP_ENV)
+
 CORS_ORIGINS = [
     origin.strip()
     for origin in os.getenv(

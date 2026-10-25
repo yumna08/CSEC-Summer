@@ -102,6 +102,10 @@ Backend variables are documented in `backend/.env.example`:
 | `CHAT_RETENTION_DAYS` | Session retention period | `30` |
 | `USE_GRAPH_PIPELINE` | Select LangGraph path | `false` |
 | `RESEARCH_MAX_MODEL_CALLS` | Research model-call cap | `8` |
+| `LANGFUSE_ENABLED` | Enable optional tracing | `false` |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Langfuse credentials | `replace-with-...` |
+| `LANGFUSE_HOST` | Langfuse endpoint | `https://cloud.langfuse.com` |
+| `LANGFUSE_ENVIRONMENT` | Trace environment label | `development` |
 | `APPROVED_DOMAINS` | Allowed ingestion domains | `astu.edu.et,portal.astu.edu.et` |
 | `MAX_CRAWL_PAGES` | Website crawl limit | `15` |
 | `CRAWL_TIMEOUT_SECONDS` | Crawler timeout | `10` |
@@ -225,9 +229,12 @@ study guidance without ASTU citations when the question is clearly general.
   benchmark because quota prevented rerunning after the scoring fix; the graph
   result was lower on that observed run.
 - Rate limiting defaults to in-memory storage and is not shared across workers.
+- Langfuse tracing is disabled by default; when enabled it requires valid
+  credentials and records only node names, latency, model names, and token
+  counts, never prompts, user messages, or keys.
 - PostgreSQL table initialization is additive at startup; a production schema
   migration process should be added before frequent schema evolution.
-- The current repository does not yet include the research-agent endpoint or
-  optional tracing backend.
+- The current repository does not yet include any hosted Langfuse dashboard
+  configuration; tracing remains an optional runtime integration.
 - Retrieval quality depends on the freshness and coverage of the approved
   indexed sources; unsupported university facts remain unavailable.

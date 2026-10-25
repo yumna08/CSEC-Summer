@@ -10,6 +10,7 @@ from langgraph.graph import END, StateGraph
 
 from app.schemas.chat import SourceCitation
 from app.services.rag import SYSTEM_INSTRUCTION, RAGService, rag_service
+from app.core.tracing import observe_node
 
 
 MAX_TOOL_CALLS = 2
@@ -238,6 +239,7 @@ class GraphPipeline:
         """Append redacted node facts without retaining user text or secrets."""
         return [*state.get("trace", []), {"node": node, **details}]
 
+    @observe_node("graph.classify")
     def classify_node(self, state: GraphState) -> Dict[str, Any]:
         classification = _classify(state["message"])
         return {
@@ -248,6 +250,7 @@ class GraphPipeline:
     def route_after_classify(self, state: GraphState) -> str:
         return "greeting" if state.get("classification") == "greeting" else "continue"
 
+    @observe_node("graph.rewrite")
     def rewrite_node(self, state: GraphState) -> Dict[str, Any]:
         if state.get("classification") == "out_of_scope":
             return {
@@ -354,6 +357,7 @@ class GraphPipeline:
                 "retrieval_fallback_reason": "tool_error",
             }
 
+    @observe_node("graph.retrieve")
     def retrieve_node(self, state: GraphState) -> Dict[str, Any]:
         if state.get("classification") == "out_of_scope":
             return {
@@ -394,6 +398,7 @@ class GraphPipeline:
             ),
         }
 
+    @observe_node("graph.generate")
     def generate_node(self, state: GraphState) -> Dict[str, Any]:
         if state.get("classification") == "out_of_scope":
             chunks = None
@@ -419,6 +424,7 @@ class GraphPipeline:
             ),
         }
 
+    @observe_node("graph.verify_citations")
     def verify_citations_node(self, state: GraphState) -> Dict[str, Any]:
         classification = state.get("classification")
         diagnostics = state.get("diagnostics", {})
@@ -442,6 +448,7 @@ class GraphPipeline:
             ),
         }
 
+    @observe_node("graph.answer_or_abstain")
     def answer_or_abstain_node(self, state: GraphState) -> Dict[str, Any]:
         if state.get("classification") == "greeting":
             return {
