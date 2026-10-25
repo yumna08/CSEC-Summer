@@ -24,3 +24,14 @@ frontend/coverage/
 .DS_Store
 .idea/
 .vscode/
+
+# Vector Store and local data
+data/
+backend/data/
+!backend/data/
+backend/data/*
+!backend/data/evaluation_dataset.json
+chroma_db/
+backend/chroma_db/
+*.sqlite3
+*.db

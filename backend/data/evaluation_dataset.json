@@ -1,0 +1,178 @@
+[
+  {
+    "id": "ss-01",
+    "category": "student_services",
+    "query": "What services does the Dean of Student Services provide?",
+    "expected_behavior": "answer",
+    "expected_sources": ["Dean of Student Services"],
+    "required_evidence_terms": ["cafeteria", "dormitory", "health"],
+    "forbidden_hallucinations": ["swimming pool", "free laptop"],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Directly supported by https://www.astu.edu.et/offices/administration-development/dean-of-student-services"
+  },
+  {
+    "id": "ss-02",
+    "category": "student_services",
+    "query": "Where can I get guidance and counseling support at ASTU?",
+    "expected_behavior": "answer",
+    "expected_sources": ["Dean of Student Services"],
+    "required_evidence_terms": ["guidance", "counseling", "student services"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Dean of Student Services explicitly lists Guidance and Counseling."
+  },
+  {
+    "id": "ss-03",
+    "category": "student_services",
+    "query": "Does ASTU have student clinic or health services?",
+    "expected_behavior": "answer",
+    "expected_sources": ["Dean of Student Services"],
+    "required_evidence_terms": ["health services"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Dean of Student Services explicitly lists Health Services."
+  },
+  {
+    "id": "reg-01",
+    "category": "admissions_and_registration",
+    "query": "What are the responsibilities of the Registrar and Alumni Executive at ASTU?",
+    "expected_behavior": "answer",
+    "expected_sources": ["ASTU Registrar and Alumni Executive"],
+    "required_evidence_terms": ["admission", "registration", "graduation"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Supported by https://www.astu.edu.et/10-academics/212-registrar-and-alumni-executive"
+  },
+  {
+    "id": "reg-02",
+    "category": "official_contacts",
+    "query": "Who is the Registrar and Alumni Executive at ASTU?",
+    "expected_behavior": "answer",
+    "expected_sources": ["ASTU Registrar and Alumni Executive"],
+    "required_evidence_terms": ["abebe", "girma", "regassa"],
+    "forbidden_hallucinations": ["john doe", "daniel berhanu"],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Chunk 2 explicitly lists Dr. Abebe Girma Regassa as Registrar and Alumni Executive."
+  },
+  {
+    "id": "cal-01",
+    "category": "academic_procedures",
+    "query": "When is the grade submission date on the 2026/2027 active calendar?",
+    "expected_behavior": "answer",
+    "expected_sources": ["ASTU Active Calendars Portal"],
+    "required_evidence_terms": ["grade submission"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Supported by https://portal.astu.edu.et/pages/active_calendars"
+  },
+  {
+    "id": "cal-02",
+    "category": "academic_procedures",
+    "query": "When are the final exams scheduled on the active calendar?",
+    "expected_behavior": "answer",
+    "expected_sources": ["ASTU Active Calendars Portal"],
+    "required_evidence_terms": ["january"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Final exams listed in January 2027 on active calendars portal."
+  },
+  {
+    "id": "cal-03",
+    "category": "academic_procedures",
+    "query": "What are the official dates for student withdrawal and readmission?",
+    "expected_behavior": "answer",
+    "expected_sources": ["ASTU Active Calendars Portal"],
+    "required_evidence_terms": ["withdrawal", "readmission"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Supported by active calendars table chunks."
+  },
+  {
+    "id": "nav-01",
+    "category": "navigational",
+    "query": "Where can I find the official ASTU website?",
+    "expected_behavior": "answer",
+    "expected_sources": ["ASTU Homepage"],
+    "required_evidence_terms": ["astu.edu.et"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Official homepage root domain recommendation."
+  },
+  {
+    "id": "nav-02",
+    "category": "navigational",
+    "query": "Where can I check the active academic calendars online?",
+    "expected_behavior": "answer",
+    "expected_sources": ["ASTU Active Calendars Portal"],
+    "required_evidence_terms": ["portal.astu.edu.et"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "verified_in_index",
+    "notes": "Navigational query pointing to active calendars portal."
+  },
+  {
+    "id": "adv-01",
+    "category": "general_student_advice",
+    "query": "How can I prepare for university exams?",
+    "expected_behavior": "answer",
+    "expected_sources": [],
+    "required_evidence_terms": ["study"],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "not_applicable",
+    "notes": "General study guidance; must NOT attach false ASTU citations."
+  },
+  {
+    "id": "adv-02",
+    "category": "general_student_advice",
+    "query": "What are effective study techniques for engineering students?",
+    "expected_behavior": "answer",
+    "expected_sources": [],
+    "required_evidence_terms": [],
+    "forbidden_hallucinations": [],
+    "manual_verification_status": "not_applicable",
+    "notes": "General educational advice with no ASTU citations."
+  },
+  {
+    "id": "unidx-01",
+    "category": "unindexed_missing_info",
+    "query": "What is the tuition fee for international students at ASTU?",
+    "expected_behavior": "abstain",
+    "expected_sources": [],
+    "required_evidence_terms": [],
+    "forbidden_hallucinations": ["$1000", "50,000 birr", "free"],
+    "manual_verification_status": "requires_manual_verification",
+    "notes": "Tuition fees are not in indexed knowledge base; assistant must acknowledge missing info."
+  },
+  {
+    "id": "unidx-02",
+    "category": "campus_facilities",
+    "query": "Where is the campus bookstore located at ASTU?",
+    "expected_behavior": "abstain",
+    "expected_sources": [],
+    "required_evidence_terms": [],
+    "forbidden_hallucinations": ["building 12", "next to library"],
+    "manual_verification_status": "requires_manual_verification",
+    "notes": "Bookstore location is not in indexed knowledge base; assistant must abstain."
+  },
+  {
+    "id": "unidx-03",
+    "category": "departments_and_programs",
+    "query": "Who is the Dean of the School of Electrical Engineering?",
+    "expected_behavior": "abstain",
+    "expected_sources": [],
+    "required_evidence_terms": [],
+    "forbidden_hallucinations": ["Dr. Smith", "Abebe Bikila"],
+    "manual_verification_status": "requires_manual_verification",
+    "notes": "Specific school deans are not indexed; must abstain."
+  },
+  {
+    "id": "unidx-04",
+    "category": "departments_and_programs",
+    "query": "What is the curriculum and credit hour requirement for the Biomedical Engineering master's program?",
+    "expected_behavior": "abstain",
+    "expected_sources": [],
+    "required_evidence_terms": [],
+    "forbidden_hallucinations": ["32 credits", "two years thesis"],
+    "manual_verification_status": "requires_manual_verification",
+    "notes": "Master's curriculum details are not indexed in knowledge base."
+  }
+]
