@@ -1,0 +1,417 @@
+from unittest.mock import MagicMock, patch
+import pytest
+from app.core.config import RAG_MAX_COSINE_DISTANCE, RAG_RELEVANCE_THRESHOLD, RAG_SCORE_MARGIN
+from app.schemas.chat import SourceCitation
+from app.services.rag import (
+    RAGService,
+    parse_source_indices,
+    verify_citation_grounding,
+)
+from app.services.vector_store import VectorStoreService
+
+
+@pytest.fixture
+def test_vector_store(tmp_path):
+    store = VectorStoreService(persist_dir=tmp_path / "chroma_test_quality")
+    # Add representative test chunks
+    # Chunk 1: Dean of Student Services
+    # unk 2: ASTU Active Calendars Portal
+    # Chunk 3: Research Symposium Abstract Template (weak/irrelevant noise chunk)
+    store.collection.add(
+        ids=["chunk_student_services", "chunk_calendar", "chunk_symposium_noise"],
+        documents=[
+            "The Office of the Dean of Student Services provides Cafeteria Services, Dormitory Services, and Health Services.",
+            "Active Calendars 2026/2027 First Semester: Grade submission begins October 15, Final Exams from January 11 to January 22.",
+            "Abstract Template 5th International Research Symposium ASTU: Manuscripts must be submitted in MS Word format (.doc or .docx).",
+        ],
+        metadatas=[
+            {"source_title": "Dean of Student Services", "source_url": "https://www.astu.edu.et/student-services", "doc_id": "doc_ss"},
+            {"source_title": "ASTU Active Calendars Portal", "source_url": "https://portal.astu.edu.et/pages/active_calendars", "doc_id": "doc_cal"},
+            {"source_title": "Abstract Template 5th International Research Symposium", "source_url": "https://www.astu.edu.et/symposium.pdf", "doc_id": "doc_symp"},
+        ],
+        # Controlled 3D embeddings to test exact distance geometry
+        embeddings=[
+            [1.0, 0.0, 0.0],  # Student services
+            [0.0, 1.0, 0.0],  # Calendar
+            [0.5, 0.5, 0.7],  # Symposium noise
+        ],
+    )
+    return store
+
+
+# -----------------------------------------------------------------------------
+# Part A: Threshold Interpretation & Metric Standardization Tests
+# -----------------------------------------------------------------------------
+
+def test_standardized_max_cosine_distance_config():
+    """Verify standardization on RAG_MAX_COSINE_DISTANCE (0.38) and deprecation compatibility."""
+    assert RAG_MAX_COSINE_DISTANCE == 0.38
+    assert RAG_RELEVANCE_THRESHOLD == 0.38
+
+
+def test_threshold_dual_interpretation():
+    """Verify that both distance threshold (0.38) and similarity threshold (0.62) compute max_dist = 0.38."""
+    # When specified as distance <= 0.5
+    d1 = 0.38 if 0.38 <= 0.5 else (1.0 - 0.38)
+    assert d1 == 0.38
+
+    # When specified as similarity > 0.5
+    d2 = (1.0 - 0.62) if 0.62 > 0.5 else 0.62
+    assert pytest.approx(d2, 0.001) == 0.38
+
+
+def test_similarity_search_margin_filtering(test_vector_store):
+    """
+    Verify that weakly related trailing chunks are excluded by margin filtering,
+    preventing irrelevant chunks from filling top-K.
+    """
+    # Query very close to Student Services ([0.98, 0.02, 0.0])
+    results = test_vector_store.similarity_search(
+        query_embedding=[0.98, 0.02, 0.0],
+        top_k=3,
+        max_distance=0.38,
+        score_margin=0.10,
+    )
+    # Only the Student Services chunk qualifies
+    assert len(results) == 1
+    assert results[0]["metadata"]["source_title"] == "Dean of Student Services"
+    assert results[0]["distance"] < 0.01
+
+
+def test_similarity_search_rejects_all_when_top_chunk_exceeds_threshold(test_vector_store):
+    """
+    Verify that when the top-ranked chunk has distance > relevance_threshold,
+    NO chunks are admitted.
+    """
+    results = test_vector_store.similarity_search(
+        query_embedding=[-0.6, -0.6, -0.5],
+        top_k=3,
+        max_distance=0.38,
+        score_margin=0.10,
+    )
+    assert len(results) == 0
+
+
+# -----------------------------------------------------------------------------
+# Part B: Independent Citation Grounding & Source Index Verification Tests
+# -----------------------------------------------------------------------------
+
+def test_parse_source_indices_validation():
+    """Verify robust parsing of model-generated citation indices: bounds, malformed, duplicates, missing."""
+    # Malformed tokens, negative, 0, out of bounds, and duplicates
+    res = parse_source_indices("[invalid, -1, 0, 999, 1, 1, 2, word, 3.5]", max_valid_index=2)
+    assert res == [1, 2]
+
+    # Out of range indices
+    assert parse_source_indices("3, 4, 5", max_valid_index=2) == []
+
+    # Duplicates deduplicated preserving order
+    assert parse_source_indices("2, 1, 2, 1", max_valid_index=2) == [2, 1]
+
+    # Missing / None / Empty / NONE / [] tags
+    assert parse_source_indices("", max_valid_index=3) == []
+    assert parse_source_indices("NONE", max_valid_index=3) == []
+    assert parse_source_indices("EMPTY", max_valid_index=3) == []
+    assert parse_source_indices("[]", max_valid_index=3) == []
+    assert parse_source_indices("N/A", max_valid_index=3) == []
+
+
+def test_independent_citation_grounding_verification():
+    """Verify that cited text actually substantiates factual claims about ASTU."""
+    # Chunk with student services details
+    chunk_text = "The Office of the Dean of Student Services provides Cafeteria Services, Dormitory Services, and Health Services."
+    valid_reply = "The Dean of Student Services at ASTU oversees Cafeteria, Dormitory, and Health Services for students."
+
+    # Substantiated citation -> True
+    assert verify_citation_grounding(chunk_text, valid_reply, "Dean of Student Services") is True
+
+    # Hallucinated citation: Model outputs generic tips or unrelated content, but cites chunk
+    hallucinated_reply = "To prepare for exams, create a timetable, get enough sleep, and practice previous questions."
+    assert verify_citation_grounding(chunk_text, hallucinated_reply, "Dean of Student Services") is False
+
+    # Calendar dates verification
+    cal_chunk = "Final Exams are scheduled from January 11 to January 22, 2027 on the active academic calendar."
+    cal_reply = "According to official records, Final Exams run from January 11 to January 22, 2027."
+    assert verify_citation_grounding(cal_chunk, cal_reply, "ASTU Active Calendars Portal") is True
+
+    # Edge cases
+    assert verify_citation_grounding("", "Some reply") is False
+    assert verify_citation_grounding(chunk_text, "") is False
+
+
+def test_rag_rejects_hallucinated_model_citation_when_unsupported_by_chunk():
+    """
+    Verify that even if Gemini outputs SOURCES_USED: [1], CampusGuide rejects the citation
+    if the chunk content does not substantiate the reply.
+    """
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    # Retrieved chunk is Research Symposium template
+    symposium_chunk = {
+        "text": "Abstract Template 5th International Research Symposium ASTU: Manuscripts must be submitted in MS Word format (.doc or .docx).",
+        "metadata": {
+            "source_title": "Abstract Template 5th International Research Symposium",
+            "source_url": "https://www.astu.edu.et/symposium.pdf",
+            "document_name": "symposium.pdf",
+            "academic_year": None,
+            "publication_date": None,
+        },
+        "distance": 0.36,
+        "relevance_score": 0.64,
+    }
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[symposium_chunk]):
+                    mock_clie    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    grounded_chunk = {
+        "text": "The Office of the Dean of Student Services provides Cafeteria Services and Dormitory Services.",
+        "metadata": {"source_title": "Dean of Student Services", "source_url": "https://www.astu.edu.et/ss"},
+        "distance": 0.20,
+    }
+    ungrounded_chunk = {
+        "text": "Research Symposium Abstract Template formatting guidelines for MS Word.",
+        "metadata": {"source_title": "Symposium Template", "source_url": "https://www.astu.edu.et/symp"},
+        "distance": 0.25,
+    }
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[grounded_chunk, ungrounded_chunk]):
+            mock_response = MagicMock()
+            # Model completely omits the SOURCES_USED tag
+            mock_response.text = "The Dean of Student Services manages Cafeteria and Dormitory accommodations for students."
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question("Where can I find dormitory services?")
+
+            # Only the grounded chunk is cited, ungrounded chunk is excluded
+            assert len(sources) == 1
+            assert sources[0].title == "Dean of Student Services"
+
+
+def test_regression_general_study_tips_no_spurious_sources():
+    """Regression test: General study advice questions must NOT return spurious sources."""
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[]):
+            mock_response = MagicMock()
+            mock_response.text = (
+                "Here are general exam preparation tips: Start early, plan a schedule, "
+                "practice with past problems, and maintain a healthy sleep cycle.\n\n"
+                "SOURCES_USED: NONE"
+            )
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question("How can I prepare for exams?")
+
+            assert "general exam preparation tips" in answer
+            assert "SOURCES_USED" not in answer  # Tag cleanly stripped
+            assert sources == []  # No research symposium or calendar citations!
+
+
+def test_regression_astu_student_services_retrieval():
+    """Regression test: Student services questions retrieve and cite official source."""
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    mock_chunk = {
+        "text": "The Dean of Student Services provides Cafeteria Services, Dormitory Services, and Health Services.",
+        "metadata": {
+            "source_title": "Dean of Student Services",
+            "source_url": "https://www.astu.edu.et/offices/administration-development/dean-of-student-services",
+            "document_name": "dean-of-student-services.html",
+            "academic_year": None,
+            "publication_date": None,
+        },
+        "distance": 0.2378,
+        "relevance_score": 0.7622,
+    }
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[mock_chunk]):
+            mock_response = MagicMock()
+            mock_response.text = (
+                "The Office of the Dean of Student Services at ASTU provides Cafeteria, "
+                "Dormitory, and Health Services.\n\n"
+                "SOURCES_USED: [1]"
+            )
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question("What services does the Dean of Student Services provide?")
+
+            assert "Cafeteria, Dormitory, and Health Services" in answer
+            assert "SOURCES_USED" not in answer
+            assert len(sources) == 1
+            assert sources[0].title == "Dean of Student Services"
+            assert sources[0].url == "https://www.astu.edu.et/offices/administration-development/dean-of-student-services"
+
+
+def test_regression_academic_calendar_questions():
+    """Regression test: Academic calendar questions retrieve and cite calendar portal."""
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    mock_chunk = {
+        "text": "Available Calendars: Final Exam period is from January 11 to January 22, 2027.",
+        "metadata": {
+            "source_title": "ASTU Active Calendars Portal",
+            "source_url": "https://portal.astu.edu.et/pages/active_calendars",
+            "document_name": "https://portal.astu.edu.et/pages/active_calendars",
+            "publication_date": "September 30, 2026",
+        },
+        "distance": 0.3131,
+        "relevance_score": 0.6869,
+    }
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[mock_chunk]):
+            mock_response = MagicMock()
+            mock_response.text = (
+                "According to the ASTU Active Calendars Portal, Final Exams are scheduled "
+                "from January 11 to January 22, 2027.\n\n"
+                "SOURCES_USED: [1]"
+            )
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question("When are final exams on the active calendar?")
+
+            assert "January 11 to January 22, 2027" in answer
+            assert len(sources) == 1
+            assert sources[0].title == "ASTU Active Calendars Portal"
+            assert sources[0].url == "https://portal.astu.edu.et/pages/active_calendars"
+
+
+def test_regression_queries_unrelated_to_indexed_documents():
+    """Regression test: Unrelated questions (e.g., cooking or quantum mechanics) do not cite ASTU docs."""
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[]):
+            mock_response = MagicMock()
+            mock_response.text = (
+                "Quantum mechanics is a fundamental theory in physics that describes the behavior "
+                "of matter and energy at atomic and subatomic scales.\n\n"
+                "SOURCES_USED: NONE"
+            )
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question("What is quantum mechanics?")
+
+            assert "Quantum mechanics" in answer
+            assert sources == []
+
+
+# -----------------------------------------------------------------------------
+# Part C: Safe No-Match Verification Tests
+# -----------------------------------------------------------------------------
+
+def test_safe_no_match_unknown_registration_procedure():
+    """Verify safe no-match: Unknown department registration procedures do not invent steps or dates."""
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[]):
+            mock_response = MagicMock()
+            mock_response.text = (
+                "I do not have verified information in the indexed ASTU knowledge base regarding "
+                "the specific 4th-year Software Engineering add/drop registration procedures. "
+                "Please check the official ASTU student portal at https://portal.astu.edu.et or "
+                "consult your department registrar.\n\n"
+                "SOURCES_USED: NONE"
+            )
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question(
+                "What are the specific department add/drop registration steps for 4th year Software Engineering students at ASTU?"
+            )
+
+            assert "do not have verified information" in answer
+            assert "portal.astu.edu.et" in answer
+            assert sources == []
+
+
+def test_safe_no_match_department_specific_exam_dates():
+    """Verify safe no-match: Department-specific exam dates are not fabricated."""
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[]):
+            mock_response = MagicMock()
+            mock_response.text = (
+                "Verified course-specific mid-term exam schedules for Applied Thermodynamics in "
+                "the Mechanical Engineering department are not found in the indexed ASTU knowledge base. "
+                "Exam schedules for individual courses are typically posted on the department notice board "
+                "or official departmental channels.\n\n"
+                "SOURCES_USED: NONE"
+            )
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question(
+                "What is the exact date and room for the Mechanical Engineering Applied Thermodynamics mid-term exam at ASTU?"
+            )
+
+            assert "not found in the indexed ASTU knowledge base" in answer
+            assert sources == []
+
+
+def test_safe_no_match_unavailable_policies():
+    """Verify safe no-match: Unavailable university policies (e.g. laptop reimbursement) are not invented."""
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[]):
+            mock_response = MagicMock()
+            mock_response.text = (
+                "There is no documented policy in the verified ASTU knowledge base regarding student laptop "
+                "theft or loss reimbursement. Please contact ASTU Campus Security or the Dean of Student Services "
+                "directly for official inquiries regarding lost property.\n\n"
+                "SOURCES_USED: NONE"
+            )
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question(
+                "What is the ASTU policy on student laptop theft or loss reimbursement?"
+            )
+
+            assert "no documented policy in the verified ASTU knowledge base" in answer
+            assert sources == []
+
+
+def test_safe_no_match_general_question_answers_without_inventing_astu_facts():
+    """Verify safe no-match: General educational questions provide guidance without fabricating ASTU rules."""
+    rag = RAGService(api_key="fake_key", model="gemini-2.5-flash")
+    mock_client = MagicMock()
+    rag._client = mock_client
+
+    with patch("app.services.rag.embedding_service.embed_query", return_value=[0.1, 0.2]):
+        with patch("app.services.rag.vector_store.similarity_search", return_value=[]):
+            mock_response = MagicMock()
+            mock_response.text = (
+                "In higher education, the European Credit Transfer and Accumulation System (ECTS) "
+                "measures student workload, where 1 ECTS credit typically represents 25-30 hours of work. "
+                "For ASTU's specific course credit allocations, please consult your curriculum handbook.\n\n"
+                "SOURCES_USED: NONE"
+            )
+            mock_client.models.generate_content.return_value = mock_response
+
+            answer, sources = rag.answer_question("How does the ECTS credit point system work in universities?")
+
+            assert "ECTS" in answer
+            assert sources == []
