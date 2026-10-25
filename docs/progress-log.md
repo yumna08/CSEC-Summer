@@ -93,3 +93,16 @@ marked as not recorded rather than inferred.
   repository locations, frontend lint, and TypeScript checks.
 - Next step: add optional tracing only if it can remain disabled without
   changing application or test behavior.
+
+## Stage C4 — optional tracing
+
+- Built: disabled-by-default Langfuse configuration, redacted graph/research
+  node spans, model latency/token metadata, and the no-configuration test were
+  added in `2c0a1cd`.
+- Learned: tracing must fail closed when credentials or the optional runtime
+  integration are unavailable, and its metadata must exclude prompts, user
+  messages, retrieved text, and keys.
+- Test result: the commit was preceded by 161 passing backend tests from both
+  repository locations, frontend lint, and TypeScript checks.
+- Next step: obtain quota for a corrected 12-question graph-versus-legacy
+  evaluation and investigate the traced failing nodes.
