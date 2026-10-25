@@ -23,9 +23,21 @@ type Message = {
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : window.localStorage.getItem("campusguide_session_id"),
+  );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  function startNewChat() {
+    window.localStorage.removeItem("campusguide_session_id");
+    setSessionId(null);
+    setMessages([]);
+    setError("");
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,13 +58,17 @@ export default function Home() {
       const response = await fetch(`${apiBaseUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question }),
+        body: JSON.stringify({
+          message: question,
+          ...(sessionId ? { session_id: sessionId } : {}),
+        }),
       });
 
       const contentType = response.headers.get("content-type") || "";
       let data: {
         reply?: string;
         answer?: string;
+        session_id?: string;
         sources?: SourceCitation[];
         detail?: string;
       } = {};
@@ -70,6 +86,11 @@ export default function Home() {
             ? data.detail
             : "Unable to get a response. Please try again.",
         );
+      }
+
+      if (data.session_id) {
+        window.localStorage.setItem("campusguide_session_id", data.session_id);
+        setSessionId(data.session_id);
       }
 
       setMessages((previous) => [
@@ -121,6 +142,13 @@ export default function Home() {
               </svg>
               <span>Admin Portal</span>
             </Link>
+            <button
+              type="button"
+              onClick={startNewChat}
+              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+            >
+              New chat
+            </button>
           </div>
         </div>
       </header>
